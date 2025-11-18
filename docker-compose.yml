@@ -1,0 +1,166 @@
+version: "3.9"
+
+services:
+  # =========================
+  # BD POSTGRES - BACKEND MATRÍCULA
+  # =========================
+  postgres-backend:
+    image: postgres:15
+    container_name: postgres-backend
+    environment:
+      POSTGRES_DB: matricula_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_backend_data:/var/lib/postgresql/data
+    networks:
+      - uni-net
+
+  # =========================
+  # BD POSTGRES - AUTH SERVICE
+  # =========================
+  postgres-auth:
+    image: postgres:15
+    container_name: postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+    networks:
+      - uni-net
+
+  # =========================
+  # ZOOKEEPER + KAFKA
+  # =========================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports:
+      - "2181:2181"
+    networks:
+      - uni-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    networks:
+      - uni-net
+
+  # =========================
+  # RABBITMQ
+  # =========================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - uni-net
+
+  # =========================
+  # BACKEND MATRÍCULA
+  # =========================
+  backend-matricula:
+    build: ./MatriculaUniversitaria
+    container_name: backend-matricula
+    depends_on:
+      - postgres-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-backend:5432/matricula_db
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      SPRING_SQL_INIT_MODE: always
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8086:8086"
+    networks:
+      - uni-net
+
+  # =========================
+  # AUTH SERVICE
+  # =========================
+  auth-service:
+    build: ./AuthMatricula
+    container_name: auth-service
+    depends_on:
+      - postgres-auth
+      - kafka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      SPRING_SQL_INIT_MODE: always
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_PROFILES_ACTIVE: dev
+      SECURITY_JWT_SECRET: changeThisSecretKeyChangeThisSecretKey
+    ports:
+      - "8087:8087"
+    networks:
+      - uni-net
+
+  # =========================
+  # KAFKA EVENT SERVICE
+  # =========================
+  kafka-event-service:
+    build: ./KafkaMatricula
+    container_name: kafka-event-service
+    depends_on:
+      - kafka
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_PROFILES_ACTIVE: dev
+    ports:
+      - "8088:8088"
+    networks:
+      - uni-net
+
+  # =========================
+  # NOTIFICATION SERVICE (Rabbit + Mailtrap)
+  # =========================
+  notification-service:
+    build: ./RabbitMQMatricula
+    container_name: notification-service
+    depends_on:
+      - rabbitmq
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_PROFILES_ACTIVE: dev
+
+      # Credenciales reales de Mailtrap (mapeadas a spring.mail.username/password vía placeholders)
+      MAILTRAP_USERNAME: TU_USUARIO_MAILTRAP
+      MAILTRAP_PASSWORD: TU_PASSWORD_MAILTRAP
+    ports:
+      - "8089:8089"
+    networks:
+      - uni-net
+
+networks:
+  uni-net:
+    driver: bridge
+
+volumes:
+  postgres_backend_data:
+  postgres_auth_data:
