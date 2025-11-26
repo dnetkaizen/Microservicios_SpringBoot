@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS auth_role (
 -- TABLA: auth_permission
 -- ===========================
 CREATE TABLE IF NOT EXISTS auth_permission (
-    permission_id SERIAL PRIMARY PRIMARY KEY,
+    permission_id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) UNIQUE NOT NULL,
     descripcion VARCHAR(200)
 );
