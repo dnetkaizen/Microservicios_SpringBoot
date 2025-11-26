@@ -24,7 +24,14 @@ public class UserCreatedProducer {
             event.setEventTimestamp(Instant.now());
         }
         String key = event.getUserId() != null ? event.getUserId().toString() : null;
-        log.info("Sending UserCreatedEvent to topic {}: {}", KafkaTopicsConfig.USER_CREATED_TOPIC, event);
+        
+        log.info("🚀 ENVIANDO UserCreatedEvent a Kafka - Topic: {}", KafkaTopicsConfig.USER_CREATED_TOPIC);
+        log.info("📦 Datos del evento: {}", event);
+        
+        // ✅ ENVÍO REAL A KAFKA - DESCOMENTA ESTA LÍNEA
         kafkaTemplate.send(KafkaTopicsConfig.USER_CREATED_TOPIC, key, event);
+        
+        System.out.println("✅ Evento REAL enviado a Kafka");
     }
 }
+

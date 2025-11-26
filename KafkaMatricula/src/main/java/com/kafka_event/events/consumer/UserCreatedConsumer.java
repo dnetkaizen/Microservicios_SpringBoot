@@ -16,10 +16,10 @@ public class UserCreatedConsumer {
 
     private final EventSyncService eventSyncService;
 
+    
     @KafkaListener(
             topics = KafkaTopicsConfig.USER_CREATED_TOPIC,
-            groupId = "${spring.kafka.consumer.group-id}",
-            containerFactory = "userCreatedKafkaListenerContainerFactory"
+            groupId = "${spring.kafka.consumer.group-id}"
     )
     public void consume(UserCreatedEvent event) {
         log.info("Received UserCreatedEvent: {}", event);

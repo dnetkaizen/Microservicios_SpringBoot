@@ -16,10 +16,11 @@ public class UserUpdatedConsumer {
 
     private final EventSyncService eventSyncService;
 
+    
     @KafkaListener(
             topics = KafkaTopicsConfig.USER_UPDATED_TOPIC,
-            groupId = "${spring.kafka.consumer.group-id}",
-            containerFactory = "userUpdatedKafkaListenerContainerFactory"
+            groupId = "${spring.kafka.consumer.group-id}"
+            //containerFactory = "userUpdatedKafkaListenerContainerFactory"
     )
     public void consume(UserUpdatedEvent event) {
         log.info("Received UserUpdatedEvent: {}", event);

@@ -1,5 +1,5 @@
 package com.kafka_event.config;
-
+/* 
 import com.kafka_event.events.dto.UserCreatedEvent;
 import com.kafka_event.events.dto.UserDeletedEvent;
 import com.kafka_event.events.dto.UserUpdatedEvent;
@@ -70,3 +70,4 @@ public class KafkaConsumerConfig {
         return factory;
     }
 }
+*/

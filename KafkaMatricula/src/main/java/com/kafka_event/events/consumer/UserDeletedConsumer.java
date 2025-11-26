@@ -16,11 +16,13 @@ public class UserDeletedConsumer {
 
     private final EventSyncService eventSyncService;
 
+    
     @KafkaListener(
             topics = KafkaTopicsConfig.USER_DELETED_TOPIC,
-            groupId = "${spring.kafka.consumer.group-id}",
-            containerFactory = "userDeletedKafkaListenerContainerFactory"
+            groupId = "${spring.kafka.consumer.group-id}"
+         //   containerFactory = "userDeletedKafkaListenerContainerFactory"
     )
+            
     public void consume(UserDeletedEvent event) {
         log.info("Received UserDeletedEvent: {}", event);
         if (event == null || event.getUserId() == null) {
