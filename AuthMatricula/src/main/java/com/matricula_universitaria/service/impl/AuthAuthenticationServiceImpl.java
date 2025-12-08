@@ -1,6 +1,7 @@
 package com.matricula_universitaria.service.impl;
 
 import com.matricula_universitaria.dto.AuthUserResponseDto;
+import com.matricula_universitaria.dto.GoogleLoginRequest;
 import com.matricula_universitaria.dto.JwtResponse;
 import com.matricula_universitaria.dto.LoginRequest;
 import com.matricula_universitaria.dto.RegisterRequest;
@@ -116,6 +117,12 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
                 user.getEmail(),
                 roles
         );
+    }
+
+    @Override
+    public JwtResponse loginWithGoogle(GoogleLoginRequest request) {
+        // Esqueleto: la lógica real de validación del idToken con Firebase se implementará posteriormente.
+        throw new UnsupportedOperationException("loginWithGoogle no está implementado todavía");
     }
 
     @Override

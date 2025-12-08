@@ -1,6 +1,7 @@
 package com.matricula_universitaria.controller;
 
 import com.matricula_universitaria.dto.AuthUserResponseDto;
+import com.matricula_universitaria.dto.GoogleLoginRequest;
 import com.matricula_universitaria.dto.JwtResponse;
 import com.matricula_universitaria.dto.LoginRequest;
 import com.matricula_universitaria.dto.RegisterRequest;
@@ -31,6 +32,12 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginRequest request) {
         JwtResponse jwt = authService.login(request);
+        return ResponseEntity.ok(jwt);
+    }
+
+    @PostMapping("/google/login")
+    public ResponseEntity<JwtResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        JwtResponse jwt = authService.loginWithGoogle(request);
         return ResponseEntity.ok(jwt);
     }
 

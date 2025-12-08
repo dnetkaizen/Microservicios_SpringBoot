@@ -31,9 +31,6 @@ public class AuthUser {
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(name = "password", nullable = false, length = 200)
-    private String password;
-
     @Column(name = "activo", nullable = false)
     private Boolean activo = Boolean.TRUE;
 

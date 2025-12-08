@@ -18,7 +18,6 @@ public class AuthUserMapper {
         AuthUser entity = new AuthUser();
         entity.setUsername(dto.username());
         entity.setEmail(dto.email());
-        entity.setPassword(dto.password());
         entity.setActivo(dto.activo() != null ? dto.activo() : Boolean.TRUE);
         return entity;
     }
@@ -26,7 +25,6 @@ public class AuthUserMapper {
     public void updateEntity(AuthUserRequestDto dto, AuthUser entity) {
         entity.setUsername(dto.username());
         entity.setEmail(dto.email());
-        entity.setPassword(dto.password());
         if (dto.activo() != null) {
             entity.setActivo(dto.activo());
         }
