@@ -107,6 +107,8 @@ services:
     depends_on:
       - postgres-auth
       - kafka
+    env_file:
+      - ./AuthMatricula/.env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
       SPRING_DATASOURCE_USERNAME: admin
@@ -115,6 +117,8 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_PROFILES_ACTIVE: dev
       SECURITY_JWT_SECRET: changeThisSecretKeyChangeThisSecretKey
+    volumes:
+      - ./secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     ports:
       - "8087:8087"
     networks:
