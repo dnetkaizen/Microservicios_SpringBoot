@@ -18,6 +18,9 @@ import com.matricula_universitaria.repository.AuthRoleRepository;
 import com.matricula_universitaria.repository.AuthUserRepository;
 import com.matricula_universitaria.repository.AuthUserRoleRepository;
 import com.matricula_universitaria.security.jwt.JwtUtil;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
 import com.matricula_universitaria.service.AuthAuthenticationService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -45,6 +48,7 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
     private final JwtUtil jwtUtil;
     private final AuthUserMapper userMapper;
     private final UserCreatedProducer userCreatedProducer;
+    private final FirebaseAuth firebaseAuth;
 
     public AuthAuthenticationServiceImpl(AuthUserRepository userRepository,
                                          AuthRoleRepository roleRepository,
@@ -53,7 +57,8 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
                                          AuthenticationManager authenticationManager,
                                          JwtUtil jwtUtil,
                                          AuthUserMapper userMapper,
-                                         UserCreatedProducer userCreatedProducer) {
+                                         UserCreatedProducer userCreatedProducer,
+                                         FirebaseAuth firebaseAuth) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
@@ -62,6 +67,7 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
         this.jwtUtil = jwtUtil;
         this.userMapper = userMapper;
         this.userCreatedProducer = userCreatedProducer;
+        this.firebaseAuth = firebaseAuth;
     }
 
     @Override
@@ -121,8 +127,85 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
 
     @Override
     public JwtResponse loginWithGoogle(GoogleLoginRequest request) {
-        // Esqueleto: la lógica real de validación del idToken con Firebase se implementará posteriormente.
-        throw new UnsupportedOperationException("loginWithGoogle no está implementado todavía");
+        if (request == null || request.idToken() == null || request.idToken().isBlank()) {
+            throw new BadRequestException("El idToken de Google es requerido");
+        }
+
+        FirebaseToken firebaseToken;
+        try {
+            firebaseToken = firebaseAuth.verifyIdToken(request.idToken());
+        } catch (FirebaseAuthException ex) {
+            throw new BadRequestException("Token de Google inválido o expirado");
+        }
+
+        String uid = firebaseToken.getUid();
+        String email = firebaseToken.getEmail();
+        String name = firebaseToken.getName();
+
+        if ((email == null || email.isBlank()) && (name == null || name.isBlank())) {
+            throw new BadRequestException("El token de Google no contiene información de usuario válida");
+        }
+
+        String username = (email != null && !email.isBlank()) ? email : name;
+        String finalEmail = (email != null && !email.isBlank()) ? email : username;
+
+        AuthUser user = userRepository.findByFirebaseUid(uid)
+                .orElseGet(() -> {
+                    // Si no existe por firebaseUid, intentamos localizar por email
+                    if (finalEmail != null && !finalEmail.isBlank()) {
+                        return userRepository.findByEmailIgnoreCase(finalEmail)
+                                .map(existing -> {
+                                    existing.setFirebaseUid(uid);
+                                    return userRepository.save(existing);
+                                })
+                                .orElseGet(() -> crearUsuarioDesdeFirebase(uid, username, finalEmail));
+                    } else {
+                        return crearUsuarioDesdeFirebase(uid, username, finalEmail);
+                    }
+                });
+
+        String token = jwtUtil.generateToken(
+                new org.springframework.security.core.userdetails.User(
+                        user.getUsername(),
+                        "", // no usamos password para este token
+                        Boolean.TRUE.equals(user.getActivo()),
+                        true,
+                        true,
+                        true,
+                        java.util.Collections.emptyList()
+                )
+        );
+
+        java.util.Set<String> roles = new java.util.HashSet<>(extractRoleNames(user));
+
+        return new JwtResponse(
+                token,
+                "Bearer",
+                user.getUsername(),
+                user.getEmail(),
+                roles
+        );
+    }
+
+    private AuthUser crearUsuarioDesdeFirebase(String uid, String username, String email) {
+        AuthUser user = AuthUser.builder()
+                .username(username)
+                .email(email)
+                .firebaseUid(uid)
+                .build();
+
+        AuthUser saved = userRepository.save(user);
+
+        UserCreatedEvent event = UserCreatedEvent.builder()
+                .userId(saved.getId())
+                .username(saved.getUsername())
+                .email(saved.getEmail())
+                .roles(extractRoleNames(saved))
+                .eventTimestamp(Instant.now())
+                .build();
+        userCreatedProducer.send(event);
+
+        return saved;
     }
 
     @Override

@@ -10,4 +10,6 @@ public interface AuthUserRepository extends JpaRepository<AuthUser, Long> {
     Optional<AuthUser> findByUsernameIgnoreCase(String username);
 
     Optional<AuthUser> findByEmailIgnoreCase(String email);
+
+    Optional<AuthUser> findByFirebaseUid(String firebaseUid);
 }
