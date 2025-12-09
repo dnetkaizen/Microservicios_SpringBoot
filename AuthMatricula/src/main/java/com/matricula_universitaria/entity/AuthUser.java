@@ -52,6 +52,7 @@ public class AuthUser {
     private LocalDateTime fechaRegistro;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private Set<AuthUserRole> userRoles = new HashSet<>();
 
     @PrePersist

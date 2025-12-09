@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -196,6 +197,18 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
 
         AuthUser saved = userRepository.save(user);
 
+        // Asignar rol "estudiante" por defecto a usuarios creados vía Google, si existe
+        roleRepository.findByNombreIgnoreCase("estudiante").ifPresent(estudianteRole -> {
+            AuthUserRoleId id = new AuthUserRoleId(saved.getId(), estudianteRole.getId());
+            AuthUserRole ur = AuthUserRole.builder()
+                    .id(id)
+                    .user(saved)
+                    .role(estudianteRole)
+                    .build();
+            userRoleRepository.save(ur);
+            saved.getUserRoles().add(ur);
+        });
+
         UserCreatedEvent event = UserCreatedEvent.builder()
                 .userId(saved.getId())
                 .username(saved.getUsername())
@@ -218,7 +231,11 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
     }
 
     private List<String> extractRoleNames(AuthUser user) {
-        return user.getUserRoles().stream()
+        Set<AuthUserRole> roles = user.getUserRoles();
+        if (roles == null || roles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return roles.stream()
                 .map(AuthUserRole::getRole)
                 .filter(Objects::nonNull)
                 .map(AuthRole::getNombre)

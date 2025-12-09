@@ -148,16 +148,48 @@ services:
     container_name: notification-service
     depends_on:
       - rabbitmq
+    env_file:
+      - ./RabbitMQMatricula/.env
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_PROFILES_ACTIVE: dev
-
-      # Credenciales reales de Mailtrap (mapeadas a spring.mail.username/password vía placeholders)
-      MAILTRAP_USERNAME: TU_USUARIO_MAILTRAP
-      MAILTRAP_PASSWORD: TU_PASSWORD_MAILTRAP
     ports:
       - "8089:8089"
+    networks:
+      - uni-net
+
+  # =========================
+  # ADMINER (Gestor ligero de BD)
+  # =========================
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: always
+    ports:
+      - "8082:8080"
+    networks:
+      - uni-net
+
+  # =========================
+  # FRONTEND MATRÍCULA (Vite + React)
+  # =========================
+  frontend-matricula:
+    image: node:20-alpine
+    container_name: frontend-matricula
+    working_dir: /app
+    volumes:
+      - ./FrontendMatricula:/app
+      # Volumen anónimo para node_modules dentro del contenedor
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    env_file:
+      - ./FrontendMatricula/.env
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend-matricula
+      - auth-service
     networks:
       - uni-net
 

@@ -13,6 +13,8 @@ services:
     container_name: notification-service
     depends_on:
       - rabbitmq
+    env_file:
+      - ./.env
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
