@@ -93,6 +93,15 @@ export function AppSidebar() {
     hasPermission('roles', 'READ') ||
     hasPermission('permisos', 'READ');
 
+  const canSeeCursos = hasPermission('cursos', 'READ');
+  const canSeeProfesores = hasPermission('profesores', 'READ');
+  const canSeeSecciones = hasPermission('secciones', 'READ');
+  const canSeeEstudiantes = hasPermission('estudiantes', 'READ');
+  const canSeeMatriculas = hasPermission('matriculas', 'READ');
+
+  const canSeeAcademico = canSeeCursos || canSeeProfesores || canSeeSecciones;
+  const canSeeEstudiantesGroup = canSeeEstudiantes || canSeeMatriculas;
+
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Logo */}
@@ -139,44 +148,58 @@ export function AppSidebar() {
           </NavGroup>
         )}
 
-        <NavGroup
-          label="Académico"
-          icon={<BookOpen className="h-5 w-5" />}
-          defaultOpen
-        >
-          <NavItem
-            to="/academico/cursos"
-            icon={<BookOpen className="h-4 w-4" />}
-            label="Cursos"
-          />
-          <NavItem
-            to="/academico/profesores"
-            icon={<UserCircle className="h-4 w-4" />}
-            label="Profesores"
-          />
-          <NavItem
-            to="/academico/secciones"
-            icon={<Building2 className="h-4 w-4" />}
-            label="Secciones"
-          />
-        </NavGroup>
+        {canSeeAcademico && (
+          <NavGroup
+            label="Académico"
+            icon={<BookOpen className="h-5 w-5" />}
+            defaultOpen
+          >
+            {canSeeCursos && (
+              <NavItem
+                to="/academico/cursos"
+                icon={<BookOpen className="h-4 w-4" />}
+                label="Cursos"
+              />
+            )}
+            {canSeeProfesores && (
+              <NavItem
+                to="/academico/profesores"
+                icon={<UserCircle className="h-4 w-4" />}
+                label="Profesores"
+              />
+            )}
+            {canSeeSecciones && (
+              <NavItem
+                to="/academico/secciones"
+                icon={<Building2 className="h-4 w-4" />}
+                label="Secciones"
+              />
+            )}
+          </NavGroup>
+        )}
 
-        <NavGroup
-          label="Estudiantes"
-          icon={<GraduationCap className="h-5 w-5" />}
-          defaultOpen
-        >
-          <NavItem
-            to="/estudiantes"
-            icon={<Users className="h-4 w-4" />}
+        {canSeeEstudiantesGroup && (
+          <NavGroup
             label="Estudiantes"
-          />
-          <NavItem
-            to="/matriculas"
-            icon={<ClipboardList className="h-4 w-4" />}
-            label="Matrículas"
-          />
-        </NavGroup>
+            icon={<GraduationCap className="h-5 w-5" />}
+            defaultOpen
+          >
+            {canSeeEstudiantes && (
+              <NavItem
+                to="/estudiantes"
+                icon={<Users className="h-4 w-4" />}
+                label="Estudiantes"
+              />
+            )}
+            {canSeeMatriculas && (
+              <NavItem
+                to="/matriculas"
+                icon={<ClipboardList className="h-4 w-4" />}
+                label="Matrículas"
+              />
+            )}
+          </NavGroup>
+        )}
       </nav>
 
       {/* User Menu */}

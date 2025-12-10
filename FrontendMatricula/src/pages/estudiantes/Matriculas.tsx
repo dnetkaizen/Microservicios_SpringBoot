@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, ClipboardList, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { authorizedFetch } from '@/lib/api';
 
 interface Matricula {
   id: string;
@@ -27,24 +28,127 @@ interface Matricula {
   estado: 'activa' | 'retirada' | 'completada';
 }
 
-const mockMatriculas: Matricula[] = [
-  { id: '1', estudiante: 'Juan Pérez Gómez', codigoEstudiante: '2024001', seccion: 'MAT101-A', curso: 'Matemáticas I', fecha: '2024-01-15', estado: 'activa' },
-  { id: '2', estudiante: 'Juan Pérez Gómez', codigoEstudiante: '2024001', seccion: 'FIS101-A', curso: 'Física I', fecha: '2024-01-15', estado: 'activa' },
-  { id: '3', estudiante: 'María García López', codigoEstudiante: '2024002', seccion: 'PRG101-A', curso: 'Programación I', fecha: '2024-01-14', estado: 'activa' },
-  { id: '4', estudiante: 'Carlos Rodríguez Silva', codigoEstudiante: '2024003', seccion: 'MAT101-B', curso: 'Matemáticas I', fecha: '2024-01-12', estado: 'retirada' },
-  { id: '5', estudiante: 'Ana Martínez Ruiz', codigoEstudiante: '2023050', seccion: 'PRG101-B', curso: 'Programación I', fecha: '2023-08-20', estado: 'completada' },
-];
+interface MatriculaResponseDto {
+  id: number;
+  estudianteId: number;
+  estudianteNombreCompleto: string;
+  seccionId: number;
+  seccionCodigo: string;
+  cursoCodigo: string;
+  fechaMatricula: string;
+  estado: string;
+  costo: number;
+  metodoPago: string;
+  fechaRegistro: string | null;
+}
+
+interface EstudianteOption {
+  id: string;
+  nombreCompleto: string;
+}
+
+interface EstudianteListDto {
+  id: number;
+  nombre: string;
+  apellido: string;
+}
+
+interface SeccionOption {
+  id: string;
+  label: string;
+}
+
+interface SeccionListDto {
+  id: number;
+  codigo: string;
+  cursoNombre: string;
+}
 
 export default function Matriculas() {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
-  const [matriculas, setMatriculas] = useState<Matricula[]>(mockMatriculas);
+  const [matriculas, setMatriculas] = useState<Matricula[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMatricula, setEditingMatricula] = useState<Matricula | null>(null);
 
+  const [estudiantes, setEstudiantes] = useState<EstudianteOption[]>([]);
+  const [secciones, setSecciones] = useState<SeccionOption[]>([]);
+
+  const [selectedEstudianteId, setSelectedEstudianteId] = useState('');
+  const [selectedSeccionId, setSelectedSeccionId] = useState('');
+  const [formEstado, setFormEstado] = useState<'activa' | 'retirada' | 'completada'>('activa');
+
+  const canRead = hasPermission('matriculas', 'READ');
   const canCreate = hasPermission('matriculas', 'CREATE');
   const canEdit = hasPermission('matriculas', 'UPDATE');
   const canDelete = hasPermission('matriculas', 'DELETE');
+
+  const mapDtoToMatricula = (dto: MatriculaResponseDto): Matricula => ({
+    id: String(dto.id),
+    estudiante: dto.estudianteNombreCompleto,
+    codigoEstudiante: String(dto.estudianteId),
+    seccion: dto.seccionCodigo,
+    curso: dto.cursoCodigo,
+    fecha: dto.fechaMatricula,
+    estado: dto.estado as 'activa' | 'retirada' | 'completada',
+  });
+
+  const loadMatriculas = async () => {
+    if (!canRead) return;
+    try {
+      const response = await authorizedFetch('/matriculas');
+      if (!response.ok) {
+        throw new Error('Error al cargar matrículas');
+      }
+      const data: MatriculaResponseDto[] = await response.json();
+      setMatriculas(data.map(mapDtoToMatricula));
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar las matrículas',
+      });
+    }
+  };
+
+  const loadEstudiantes = async () => {
+    try {
+      const response = await authorizedFetch('/estudiantes');
+      if (!response.ok) return;
+      const data: EstudianteListDto[] = await response.json();
+      setEstudiantes(
+        data.map((e) => ({
+          id: String(e.id),
+          nombreCompleto: `${e.nombre} ${e.apellido}`,
+        })),
+      );
+    } catch (error) {
+      console.error('Error al cargar estudiantes para matrículas:', error);
+    }
+  };
+
+  const loadSecciones = async () => {
+    try {
+      const response = await authorizedFetch('/secciones');
+      if (!response.ok) return;
+      const data: SeccionListDto[] = await response.json();
+      setSecciones(
+        data.map((s) => ({
+          id: String(s.id),
+          label: `${s.codigo} - ${s.cursoNombre}`,
+        })),
+      );
+    } catch (error) {
+      console.error('Error al cargar secciones para matrículas:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!canRead) return;
+    void loadMatriculas();
+    void loadEstudiantes();
+    void loadSecciones();
+  }, [canRead]);
 
   const columns: Column<Matricula>[] = [
     {
@@ -98,25 +202,116 @@ export default function Matriculas() {
 
   const handleEdit = (matricula: Matricula) => {
     setEditingMatricula(matricula);
+    setSelectedEstudianteId(matricula.codigoEstudiante);
+    // No tenemos seccionId en el modelo actual, así que usamos el código de sección como valor del select.
+    setSelectedSeccionId(matricula.seccion);
+    setFormEstado(matricula.estado);
     setIsDialogOpen(true);
   };
 
   const handleDelete = (matricula: Matricula) => {
-    setMatriculas(matriculas.filter((m) => m.id !== matricula.id));
-    toast({
-      title: 'Matrícula eliminada',
-      description: 'La matrícula ha sido eliminada correctamente',
-    });
+    if (!canDelete) return;
+
+    const deleteMatricula = async () => {
+      try {
+        const response = await authorizedFetch(`/matriculas/${matricula.id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          throw new Error('Error al eliminar matrícula');
+        }
+        setMatriculas((prev) => prev.filter((m) => m.id !== matricula.id));
+        toast({
+          title: 'Matrícula eliminada',
+          description: 'La matrícula ha sido eliminada correctamente',
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudo eliminar la matrícula',
+        });
+      }
+    };
+
+    void deleteMatricula();
   };
 
   const handleSave = () => {
-    setIsDialogOpen(false);
-    setEditingMatricula(null);
-    toast({
-      title: editingMatricula ? 'Matrícula actualizada' : 'Matrícula creada',
-      description: 'Los cambios se han guardado correctamente',
+    if (!selectedEstudianteId || !selectedSeccionId) {
+      toast({
+        title: 'Datos incompletos',
+        description: 'Debes seleccionar un estudiante y una sección',
+      });
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    const body = JSON.stringify({
+      estudianteId: Number(selectedEstudianteId),
+      seccionId: Number(selectedSeccionId),
+      fechaMatricula: editingMatricula ? editingMatricula.fecha : today,
+      estado: formEstado,
+      costo: 0,
+      metodoPago: 'EFECTIVO',
     });
+
+    const save = async () => {
+      try {
+        if (editingMatricula) {
+          if (!canEdit) return;
+          const response = await authorizedFetch(`/matriculas/${editingMatricula.id}`, {
+            method: 'PUT',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al actualizar matrícula');
+          }
+        } else {
+          if (!canCreate) return;
+          const response = await authorizedFetch('/matriculas', {
+            method: 'POST',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al crear matrícula');
+          }
+        }
+
+        await loadMatriculas();
+
+        toast({
+          title: editingMatricula ? 'Matrícula actualizada' : 'Matrícula creada',
+          description: 'Los cambios se han guardado correctamente',
+        });
+
+        setIsDialogOpen(false);
+        setEditingMatricula(null);
+        setSelectedEstudianteId('');
+        setSelectedSeccionId('');
+        setFormEstado('activa');
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron guardar los cambios',
+        });
+      }
+    };
+
+    void save();
   };
+
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">
+          No tienes permisos para ver esta sección.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -125,7 +320,15 @@ export default function Matriculas() {
         description="Administra las matrículas de estudiantes en secciones"
         actions={
           canCreate && (
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button
+              onClick={() => {
+                setEditingMatricula(null);
+                setSelectedEstudianteId('');
+                setSelectedSeccionId('');
+                setFormEstado('activa');
+                setIsDialogOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4" />
               Nueva Matrícula
             </Button>
@@ -160,46 +363,55 @@ export default function Matriculas() {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="estudiante">Estudiante</Label>
-              <Select defaultValue={editingMatricula?.codigoEstudiante}>
+              <Select
+                value={selectedEstudianteId}
+                onValueChange={setSelectedEstudianteId}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona un estudiante" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="2024001">Juan Pérez Gómez (2024001)</SelectItem>
-                  <SelectItem value="2024002">María García López (2024002)</SelectItem>
-                  <SelectItem value="2024003">Carlos Rodríguez Silva (2024003)</SelectItem>
+                  {estudiantes.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.nombreCompleto} ({e.id})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="seccion">Sección</Label>
-              <Select defaultValue={editingMatricula?.seccion}>
+              <Select value={selectedSeccionId} onValueChange={setSelectedSeccionId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona una sección" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MAT101-A">MAT101-A - Matemáticas I</SelectItem>
-                  <SelectItem value="MAT101-B">MAT101-B - Matemáticas I</SelectItem>
-                  <SelectItem value="FIS101-A">FIS101-A - Física I</SelectItem>
-                  <SelectItem value="PRG101-A">PRG101-A - Programación I</SelectItem>
+                  {secciones.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            {editingMatricula && (
-              <div className="space-y-2">
-                <Label htmlFor="estado">Estado</Label>
-                <Select defaultValue={editingMatricula?.estado}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona el estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activa">Activa</SelectItem>
-                    <SelectItem value="retirada">Retirada</SelectItem>
-                    <SelectItem value="completada">Completada</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="estado">Estado</Label>
+              <Select
+                value={formEstado}
+                onValueChange={(value) =>
+                  setFormEstado(value as 'activa' | 'retirada' | 'completada')
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activa">Activa</SelectItem>
+                  <SelectItem value="retirada">Retirada</SelectItem>
+                  <SelectItem value="completada">Completada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>

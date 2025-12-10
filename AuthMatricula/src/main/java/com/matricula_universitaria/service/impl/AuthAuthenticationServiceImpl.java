@@ -205,8 +205,10 @@ public class AuthAuthenticationServiceImpl implements AuthAuthenticationService 
                     .user(saved)
                     .role(estudianteRole)
                     .build();
-            userRoleRepository.save(ur);
-            saved.getUserRoles().add(ur);
+            // save() devuelve la instancia gestionada por el EntityManager;
+            // usamos esa instancia para evitar tener dos objetos distintos con el mismo ID en la sesión.
+            AuthUserRole managed = userRoleRepository.save(ur);
+            saved.getUserRoles().add(managed);
         });
 
         UserCreatedEvent event = UserCreatedEvent.builder()

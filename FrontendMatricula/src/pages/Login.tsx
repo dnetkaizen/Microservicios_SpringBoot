@@ -200,7 +200,7 @@ export default function Login() {
                       {isPasswordSubmitting ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
-                        'Iniciar sesión con usuario y contraseña'
+                        'Iniciar sesión'
                       )}
                     </Button>
                   </form>

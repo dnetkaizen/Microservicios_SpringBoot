@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { authorizedFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface AuthRoleResponse {
   id: number;
@@ -43,6 +44,12 @@ function mapAuthRoleToRol(role: AuthRoleResponse): Rol {
 
 export default function Roles() {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+
+  const canRead = hasPermission('roles', 'READ');
+  const canCreate = hasPermission('roles', 'CREATE');
+  const canEdit = hasPermission('roles', 'UPDATE');
+  const canDelete = hasPermission('roles', 'DELETE');
   const [roles, setRoles] = useState<Rol[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Rol | null>(null);
@@ -187,23 +194,35 @@ export default function Roles() {
     }
   };
 
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">
+          No tienes permisos para ver la gestión de roles.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Gestión de Roles"
         description="Administra los roles del sistema y sus permisos asociados"
         actions={
-          <Button
-            onClick={() => {
-              setEditingRole(null);
-              setFormNombre('');
-              setFormDescripcion('');
-              setIsDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Rol
-          </Button>
+          canCreate ? (
+            <Button
+              onClick={() => {
+                setEditingRole(null);
+                setFormNombre('');
+                setFormDescripcion('');
+                setIsDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo Rol
+            </Button>
+          ) : undefined
         }
       />
 
@@ -215,9 +234,11 @@ export default function Roles() {
           columns={columns}
           searchKey="nombre"
           searchPlaceholder="Buscar rol..."
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          onEdit={canEdit ? handleEdit : undefined}
+          onDelete={canDelete ? handleDelete : undefined}
           canView={false}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
       )}
 

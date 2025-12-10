@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -17,34 +17,86 @@ import { Label } from '@/components/ui/label';
 import { Plus, UserCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { authorizedFetch } from '@/lib/api';
 
 interface Profesor {
   id: string;
   nombres: string;
   apellidos: string;
+  dni: string;
   email: string;
-  especialidad: string;
+  telefono?: string;
+  especialidad?: string;
+  tituloAcademico?: string;
   estado: 'activo' | 'inactivo';
 }
 
-const mockProfesores: Profesor[] = [
-  { id: '1', nombres: 'Roberto', apellidos: 'López García', email: 'r.lopez@universidad.edu', especialidad: 'Matemáticas', estado: 'activo' },
-  { id: '2', nombres: 'María', apellidos: 'Fernández Ruiz', email: 'm.fernandez@universidad.edu', especialidad: 'Física', estado: 'activo' },
-  { id: '3', nombres: 'Carlos', apellidos: 'Martínez Soto', email: 'c.martinez@universidad.edu', especialidad: 'Programación', estado: 'activo' },
-  { id: '4', nombres: 'Ana', apellidos: 'Rodríguez Vega', email: 'a.rodriguez@universidad.edu', especialidad: 'Química', estado: 'inactivo' },
-  { id: '5', nombres: 'Pedro', apellidos: 'Sánchez Luna', email: 'p.sanchez@universidad.edu', especialidad: 'Inglés', estado: 'activo' },
-];
+interface ProfesorResponseDto {
+  id: number;
+  nombre: string;
+  apellido: string;
+  dni: string;
+  email: string;
+  telefono: string | null;
+  especialidad: string | null;
+  tituloAcademico: string | null;
+  fechaRegistro: string | null;
+  activo: boolean;
+}
 
 export default function Profesores() {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
-  const [profesores, setProfesores] = useState<Profesor[]>(mockProfesores);
+  const [profesores, setProfesores] = useState<Profesor[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProfesor, setEditingProfesor] = useState<Profesor | null>(null);
 
+  const [formNombres, setFormNombres] = useState('');
+  const [formApellidos, setFormApellidos] = useState('');
+  const [formDni, setFormDni] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formTelefono, setFormTelefono] = useState('');
+  const [formEspecialidad, setFormEspecialidad] = useState('');
+  const [formTitulo, setFormTitulo] = useState('');
+
+  const canRead = hasPermission('profesores', 'READ');
   const canCreate = hasPermission('profesores', 'CREATE');
   const canEdit = hasPermission('profesores', 'UPDATE');
   const canDelete = hasPermission('profesores', 'DELETE');
+
+  const mapDtoToProfesor = (dto: ProfesorResponseDto): Profesor => ({
+    id: String(dto.id),
+    nombres: dto.nombre,
+    apellidos: dto.apellido,
+    dni: dto.dni,
+    email: dto.email,
+    telefono: dto.telefono ?? '',
+    especialidad: dto.especialidad ?? '',
+    tituloAcademico: dto.tituloAcademico ?? '',
+    estado: dto.activo ? 'activo' : 'inactivo',
+  });
+
+  const loadProfesores = async () => {
+    if (!canRead) return;
+    try {
+      const response = await authorizedFetch('/profesores');
+      if (!response.ok) {
+        throw new Error('Error al cargar profesores');
+      }
+      const data: ProfesorResponseDto[] = await response.json();
+      setProfesores(data.map(mapDtoToProfesor));
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar los profesores',
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadProfesores();
+  }, [canRead]);
 
   const columns: Column<Profesor>[] = [
     {
@@ -84,25 +136,123 @@ export default function Profesores() {
 
   const handleEdit = (profesor: Profesor) => {
     setEditingProfesor(profesor);
+    setFormNombres(profesor.nombres);
+    setFormApellidos(profesor.apellidos);
+    setFormDni(profesor.dni);
+    setFormEmail(profesor.email);
+    setFormTelefono(profesor.telefono ?? '');
+    setFormEspecialidad(profesor.especialidad ?? '');
+    setFormTitulo(profesor.tituloAcademico ?? '');
     setIsDialogOpen(true);
   };
 
   const handleDelete = (profesor: Profesor) => {
-    setProfesores(profesores.filter((p) => p.id !== profesor.id));
-    toast({
-      title: 'Profesor eliminado',
-      description: `${profesor.nombres} ${profesor.apellidos} ha sido eliminado correctamente`,
-    });
+    if (!canDelete) return;
+
+    const deleteProfesor = async () => {
+      try {
+        const response = await authorizedFetch(`/profesores/${profesor.id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          throw new Error('Error al eliminar profesor');
+        }
+        setProfesores((prev) => prev.filter((p) => p.id !== profesor.id));
+        toast({
+          title: 'Profesor eliminado',
+          description: `${profesor.nombres} ${profesor.apellidos} ha sido eliminado correctamente`,
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudo eliminar el profesor',
+        });
+      }
+    };
+
+    void deleteProfesor();
   };
 
   const handleSave = () => {
-    setIsDialogOpen(false);
-    setEditingProfesor(null);
-    toast({
-      title: editingProfesor ? 'Profesor actualizado' : 'Profesor creado',
-      description: 'Los cambios se han guardado correctamente',
+    if (!formNombres.trim() || !formApellidos.trim() || !formDni.trim() || !formEmail.trim()) {
+      toast({
+        title: 'Datos incompletos',
+        description: 'Debes ingresar nombres, apellidos, DNI y email',
+      });
+      return;
+    }
+
+    const body = JSON.stringify({
+      nombre: formNombres,
+      apellido: formApellidos,
+      dni: formDni,
+      email: formEmail,
+      telefono: formTelefono || null,
+      especialidad: formEspecialidad || null,
+      tituloAcademico: formTitulo || null,
+      activo: true,
     });
+
+    const save = async () => {
+      try {
+        if (editingProfesor) {
+          if (!canEdit) return;
+          const response = await authorizedFetch(`/profesores/${editingProfesor.id}`, {
+            method: 'PUT',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al actualizar profesor');
+          }
+        } else {
+          if (!canCreate) return;
+          const response = await authorizedFetch('/profesores', {
+            method: 'POST',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al crear profesor');
+          }
+        }
+
+        await loadProfesores();
+
+        toast({
+          title: editingProfesor ? 'Profesor actualizado' : 'Profesor creado',
+          description: 'Los cambios se han guardado correctamente',
+        });
+
+        setIsDialogOpen(false);
+        setEditingProfesor(null);
+        setFormNombres('');
+        setFormApellidos('');
+        setFormDni('');
+        setFormEmail('');
+        setFormTelefono('');
+        setFormEspecialidad('');
+        setFormTitulo('');
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron guardar los cambios',
+        });
+      }
+    };
+
+    void save();
   };
+
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">
+          No tienes permisos para ver esta sección.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -111,7 +261,19 @@ export default function Profesores() {
         description="Administra el directorio de profesores de la universidad"
         actions={
           canCreate && (
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button
+              onClick={() => {
+                setEditingProfesor(null);
+                setFormNombres('');
+                setFormApellidos('');
+                setFormDni('');
+                setFormEmail('');
+                setFormTelefono('');
+                setFormEspecialidad('');
+                setFormTitulo('');
+                setIsDialogOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4" />
               Nuevo Profesor
             </Button>
@@ -149,7 +311,8 @@ export default function Profesores() {
                 <Label htmlFor="nombres">Nombres</Label>
                 <Input
                   id="nombres"
-                  defaultValue={editingProfesor?.nombres}
+                  value={formNombres}
+                  onChange={(e) => setFormNombres(e.target.value)}
                   placeholder="Roberto"
                 />
               </div>
@@ -157,8 +320,29 @@ export default function Profesores() {
                 <Label htmlFor="apellidos">Apellidos</Label>
                 <Input
                   id="apellidos"
-                  defaultValue={editingProfesor?.apellidos}
+                  value={formApellidos}
+                  onChange={(e) => setFormApellidos(e.target.value)}
                   placeholder="López García"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dni">DNI</Label>
+                <Input
+                  id="dni"
+                  value={formDni}
+                  onChange={(e) => setFormDni(e.target.value)}
+                  placeholder="12345678"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefono">Teléfono</Label>
+                <Input
+                  id="telefono"
+                  value={formTelefono}
+                  onChange={(e) => setFormTelefono(e.target.value)}
+                  placeholder="999999999"
                 />
               </div>
             </div>
@@ -167,7 +351,8 @@ export default function Profesores() {
               <Input
                 id="email"
                 type="email"
-                defaultValue={editingProfesor?.email}
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="profesor@universidad.edu"
               />
             </div>
@@ -175,8 +360,18 @@ export default function Profesores() {
               <Label htmlFor="especialidad">Especialidad</Label>
               <Input
                 id="especialidad"
-                defaultValue={editingProfesor?.especialidad}
+                value={formEspecialidad}
+                onChange={(e) => setFormEspecialidad(e.target.value)}
                 placeholder="Matemáticas"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="titulo">Título académico</Label>
+              <Input
+                id="titulo"
+                value={formTitulo}
+                onChange={(e) => setFormTitulo(e.target.value)}
+                placeholder="Dr. / Mg. / Lic."
               />
             </div>
           </div>

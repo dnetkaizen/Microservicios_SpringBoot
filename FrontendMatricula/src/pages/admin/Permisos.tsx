@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Save, ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { authorizedFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const recursos = [
   { id: 'usuarios', nombre: 'Usuarios' },
@@ -59,6 +60,10 @@ function parsePermissionName(nombre: string): { recursoId: string; operacion: st
 
 export default function Permisos() {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+
+  const canRead = hasPermission('permisos', 'READ');
+  const canUpdate = hasPermission('permisos', 'UPDATE');
   const [roles, setRoles] = useState<AuthRoleResponse[]>([]);
   const [permissions, setPermissions] = useState<AuthPermissionResponse[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('');
@@ -132,6 +137,13 @@ export default function Permisos() {
   };
 
   const handlePermissionChange = async (recurso: string, operacion: string, checked: boolean) => {
+    if (!canUpdate) {
+      toast({
+        title: 'Permiso insuficiente',
+        description: 'No tienes permisos para modificar permisos de roles',
+      });
+      return;
+    }
     if (!selectedRole) {
       toast({
         title: 'Selecciona un rol',
@@ -205,6 +217,17 @@ export default function Permisos() {
       description: 'La matriz de permisos se ha actualizado correctamente',
     });
   };
+
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <PageHeader
+          title="Matriz de Permisos"
+          description="No tienes permisos para ver esta sección."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">

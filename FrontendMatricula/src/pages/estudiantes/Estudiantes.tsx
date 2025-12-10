@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, GraduationCap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { authorizedFetch } from '@/lib/api';
 
 interface Estudiante {
   id: string;
@@ -28,24 +29,68 @@ interface Estudiante {
   estado: 'activo' | 'inactivo' | 'egresado';
 }
 
-const mockEstudiantes: Estudiante[] = [
-  { id: '1', codigo: '2024001', nombres: 'Juan', apellidos: 'Pérez Gómez', email: 'juan.perez@estudiante.edu', carrera: 'Ingeniería de Sistemas', estado: 'activo' },
-  { id: '2', codigo: '2024002', nombres: 'María', apellidos: 'García López', email: 'maria.garcia@estudiante.edu', carrera: 'Ingeniería Civil', estado: 'activo' },
-  { id: '3', codigo: '2024003', nombres: 'Carlos', apellidos: 'Rodríguez Silva', email: 'carlos.rodriguez@estudiante.edu', carrera: 'Medicina', estado: 'activo' },
-  { id: '4', codigo: '2023050', nombres: 'Ana', apellidos: 'Martínez Ruiz', email: 'ana.martinez@estudiante.edu', carrera: 'Derecho', estado: 'inactivo' },
-  { id: '5', codigo: '2022100', nombres: 'Pedro', apellidos: 'Sánchez Vega', email: 'pedro.sanchez@estudiante.edu', carrera: 'Administración', estado: 'egresado' },
-];
+interface EstudianteResponseDto {
+  id: number;
+  nombre: string;
+  apellido: string;
+  dni: string;
+  email: string;
+  telefono: string | null;
+  fechaNacimiento: string | null;
+  direccion: string | null;
+  fechaRegistro: string | null;
+  activo: boolean;
+}
 
 export default function Estudiantes() {
   const { toast } = useToast();
   const { hasPermission } = useAuth();
-  const [estudiantes, setEstudiantes] = useState<Estudiante[]>(mockEstudiantes);
+  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEstudiante, setEditingEstudiante] = useState<Estudiante | null>(null);
 
+  const [formCodigo, setFormCodigo] = useState('');
+  const [formCarrera, setFormCarrera] = useState('');
+  const [formNombres, setFormNombres] = useState('');
+  const [formApellidos, setFormApellidos] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+
+  const canRead = hasPermission('estudiantes', 'READ');
   const canCreate = hasPermission('estudiantes', 'CREATE');
   const canEdit = hasPermission('estudiantes', 'UPDATE');
   const canDelete = hasPermission('estudiantes', 'DELETE');
+
+  const mapDtoToEstudiante = (dto: EstudianteResponseDto): Estudiante => ({
+    id: String(dto.id),
+    codigo: dto.dni,
+    nombres: dto.nombre,
+    apellidos: dto.apellido,
+    email: dto.email,
+    carrera: dto.direccion ?? '',
+    estado: dto.activo ? 'activo' : 'inactivo',
+  });
+
+  const loadEstudiantes = async () => {
+    if (!canRead) return;
+    try {
+      const response = await authorizedFetch('/estudiantes');
+      if (!response.ok) {
+        throw new Error('Error al cargar estudiantes');
+      }
+      const data: EstudianteResponseDto[] = await response.json();
+      setEstudiantes(data.map(mapDtoToEstudiante));
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'No se pudieron cargar los estudiantes',
+      });
+    }
+  };
+
+  useEffect(() => {
+    void loadEstudiantes();
+  }, [canRead]);
 
   const columns: Column<Estudiante>[] = [
     {
@@ -100,25 +145,119 @@ export default function Estudiantes() {
 
   const handleEdit = (estudiante: Estudiante) => {
     setEditingEstudiante(estudiante);
+    setFormCodigo(estudiante.codigo);
+    setFormCarrera(estudiante.carrera);
+    setFormNombres(estudiante.nombres);
+    setFormApellidos(estudiante.apellidos);
+    setFormEmail(estudiante.email);
     setIsDialogOpen(true);
   };
 
   const handleDelete = (estudiante: Estudiante) => {
-    setEstudiantes(estudiantes.filter((e) => e.id !== estudiante.id));
-    toast({
-      title: 'Estudiante eliminado',
-      description: `${estudiante.nombres} ${estudiante.apellidos} ha sido eliminado correctamente`,
-    });
+    if (!canDelete) return;
+
+    const deleteEstudiante = async () => {
+      try {
+        const response = await authorizedFetch(`/estudiantes/${estudiante.id}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          throw new Error('Error al eliminar estudiante');
+        }
+        setEstudiantes((prev) => prev.filter((e) => e.id !== estudiante.id));
+        toast({
+          title: 'Estudiante eliminado',
+          description: `${estudiante.nombres} ${estudiante.apellidos} ha sido eliminado correctamente`,
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudo eliminar el estudiante',
+        });
+      }
+    };
+
+    void deleteEstudiante();
   };
 
   const handleSave = () => {
-    setIsDialogOpen(false);
-    setEditingEstudiante(null);
-    toast({
-      title: editingEstudiante ? 'Estudiante actualizado' : 'Estudiante creado',
-      description: 'Los cambios se han guardado correctamente',
+    if (!formCodigo.trim() || !formNombres.trim() || !formApellidos.trim() || !formEmail.trim()) {
+      toast({
+        title: 'Datos incompletos',
+        description: 'Debes ingresar código (DNI), nombres, apellidos y email',
+      });
+      return;
+    }
+
+    const body = JSON.stringify({
+      nombre: formNombres,
+      apellido: formApellidos,
+      dni: formCodigo,
+      email: formEmail,
+      telefono: null,
+      fechaNacimiento: '2000-01-01',
+      direccion: formCarrera || null,
+      activo: true,
     });
+
+    const save = async () => {
+      try {
+        if (editingEstudiante) {
+          if (!canEdit) return;
+          const response = await authorizedFetch(`/estudiantes/${editingEstudiante.id}`, {
+            method: 'PUT',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al actualizar estudiante');
+          }
+        } else {
+          if (!canCreate) return;
+          const response = await authorizedFetch('/estudiantes', {
+            method: 'POST',
+            body,
+          });
+          if (!response.ok) {
+            throw new Error('Error al crear estudiante');
+          }
+        }
+
+        await loadEstudiantes();
+
+        toast({
+          title: editingEstudiante ? 'Estudiante actualizado' : 'Estudiante creado',
+          description: 'Los cambios se han guardado correctamente',
+        });
+
+        setIsDialogOpen(false);
+        setEditingEstudiante(null);
+        setFormCodigo('');
+        setFormCarrera('');
+        setFormNombres('');
+        setFormApellidos('');
+        setFormEmail('');
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron guardar los cambios',
+        });
+      }
+    };
+
+    void save();
   };
+
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">
+          No tienes permisos para ver esta sección.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -127,7 +266,17 @@ export default function Estudiantes() {
         description="Administra el registro de estudiantes de la universidad"
         actions={
           canCreate && (
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button
+              onClick={() => {
+                setEditingEstudiante(null);
+                setFormCodigo('');
+                setFormCarrera('');
+                setFormNombres('');
+                setFormApellidos('');
+                setFormEmail('');
+                setIsDialogOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4" />
               Nuevo Estudiante
             </Button>
@@ -165,7 +314,8 @@ export default function Estudiantes() {
                 <Label htmlFor="codigo">Código</Label>
                 <Input
                   id="codigo"
-                  defaultValue={editingEstudiante?.codigo}
+                  value={formCodigo}
+                  onChange={(e) => setFormCodigo(e.target.value)}
                   placeholder="2024001"
                 />
               </div>
@@ -173,7 +323,8 @@ export default function Estudiantes() {
                 <Label htmlFor="carrera">Carrera</Label>
                 <Input
                   id="carrera"
-                  defaultValue={editingEstudiante?.carrera}
+                  value={formCarrera}
+                  onChange={(e) => setFormCarrera(e.target.value)}
                   placeholder="Ingeniería de Sistemas"
                 />
               </div>
@@ -183,7 +334,8 @@ export default function Estudiantes() {
                 <Label htmlFor="nombres">Nombres</Label>
                 <Input
                   id="nombres"
-                  defaultValue={editingEstudiante?.nombres}
+                  value={formNombres}
+                  onChange={(e) => setFormNombres(e.target.value)}
                   placeholder="Juan"
                 />
               </div>
@@ -191,7 +343,8 @@ export default function Estudiantes() {
                 <Label htmlFor="apellidos">Apellidos</Label>
                 <Input
                   id="apellidos"
-                  defaultValue={editingEstudiante?.apellidos}
+                  value={formApellidos}
+                  onChange={(e) => setFormApellidos(e.target.value)}
                   placeholder="Pérez Gómez"
                 />
               </div>
@@ -201,7 +354,8 @@ export default function Estudiantes() {
               <Input
                 id="email"
                 type="email"
-                defaultValue={editingEstudiante?.email}
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="estudiante@universidad.edu"
               />
             </div>

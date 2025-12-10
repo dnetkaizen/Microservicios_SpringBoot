@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { authorizedFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Usuario {
   id: string;
@@ -56,6 +57,12 @@ function mapAuthUserToUsuario(user: AuthUserResponse): Usuario {
 
 export default function Usuarios() {
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+
+  const canRead = hasPermission('usuarios', 'READ');
+  const canCreate = hasPermission('usuarios', 'CREATE');
+  const canEdit = hasPermission('usuarios', 'UPDATE');
+  const canDelete = hasPermission('usuarios', 'DELETE');
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
@@ -215,23 +222,35 @@ export default function Usuarios() {
     }
   };
 
+  if (!canRead) {
+    return (
+      <div className="p-4">
+        <p className="text-sm text-muted-foreground">
+          No tienes permisos para ver la gestión de usuarios.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="Gestión de Usuarios"
         description="Administra los usuarios del sistema y sus roles asignados"
         actions={
-          <Button
-            onClick={() => {
-              setEditingUser(null);
-              setFormUsername('');
-              setFormEmail('');
-              setIsDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo Usuario
-          </Button>
+          canCreate ? (
+            <Button
+              onClick={() => {
+                setEditingUser(null);
+                setFormUsername('');
+                setFormEmail('');
+                setIsDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo Usuario
+            </Button>
+          ) : undefined
         }
       />
 
@@ -244,8 +263,10 @@ export default function Usuarios() {
           searchKey="email"
           searchPlaceholder="Buscar por email..."
           onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          onEdit={canEdit ? handleEdit : undefined}
+          onDelete={canDelete ? handleDelete : undefined}
+          canEdit={canEdit}
+          canDelete={canDelete}
         />
       )}
 

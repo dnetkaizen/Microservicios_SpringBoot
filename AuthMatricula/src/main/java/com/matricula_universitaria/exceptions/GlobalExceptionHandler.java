@@ -71,11 +71,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex,
                                                              HttpServletRequest request) {
         HttpStatus status = HttpStatus.CONFLICT;
+        String detail = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
         ErrorResponse body = new ErrorResponse(
                 LocalDateTime.now(),
                 status.value(),
                 status.getReasonPhrase(),
-                "Violación de integridad de datos",
+                "Violación de integridad de datos: " + detail,
                 request.getRequestURI(),
                 null
         );
