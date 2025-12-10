@@ -10,8 +10,10 @@ import {
   Calendar,
   ArrowUpRight,
   ArrowDownRight,
+  Shield,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { Link } from 'react-router-dom';
 
 const matriculasData = [
   { mes: 'Ene', matriculas: 120 },
@@ -74,7 +76,20 @@ function StatCard({ title, value, description, icon, trend }: StatCardProps) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
+
+  const canAdmin =
+    hasPermission('usuarios', 'READ') ||
+    hasPermission('roles', 'READ') ||
+    hasPermission('permisos', 'READ');
+
+  const canAcademic =
+    hasPermission('cursos', 'READ') ||
+    hasPermission('profesores', 'READ') ||
+    hasPermission('secciones', 'READ');
+
+  const canStudentModule =
+    hasPermission('estudiantes', 'READ') || hasPermission('matriculas', 'READ');
 
   return (
     <div className="animate-fade-in">
@@ -82,6 +97,100 @@ export default function Dashboard() {
         title={`Bienvenido, ${user?.displayName?.split(' ')[0] || 'Usuario'}`}
         description="Resumen general del sistema de matrícula universitaria"
       />
+
+      {(canAdmin || canAcademic || canStudentModule) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {canAdmin && (
+            <Card className="border-border shadow-soft hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Shield className="h-4 w-4 text-primary" />
+                  Administración
+                </CardTitle>
+                <CardDescription>Gestión de usuarios, roles y permisos</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link
+                  to="/admin/usuarios"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Usuarios
+                </Link>
+                <Link
+                  to="/admin/roles"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Roles
+                </Link>
+                <Link
+                  to="/admin/permisos"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Permisos
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {canAcademic && (
+            <Card className="border-border shadow-soft hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  Académico
+                </CardTitle>
+                <CardDescription>Gestión de cursos, profesores y secciones</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link
+                  to="/academico/cursos"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Cursos
+                </Link>
+                <Link
+                  to="/academico/profesores"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Profesores
+                </Link>
+                <Link
+                  to="/academico/secciones"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Secciones
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {canStudentModule && (
+            <Card className="border-border shadow-soft hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  Estudiantes
+                </CardTitle>
+                <CardDescription>Gestión y seguimiento de estudiantes y matrículas</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Link
+                  to="/estudiantes"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Estudiantes
+                </Link>
+                <Link
+                  to="/matriculas"
+                  className="inline-flex items-center text-sm text-primary hover:underline"
+                >
+                  Matrículas
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
