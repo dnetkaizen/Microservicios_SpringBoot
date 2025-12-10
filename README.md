@@ -368,6 +368,8 @@ docker compose up -d
     - `auth-service` (`8087`)
     - `kafka-event-service` (`8088`)
     - `notification-service` (`8089`)
+  - Frontend:
+    - `frontend-matricula` (`5173`)
 
 ### 6.4 Validar contenedores y ver logs
 
@@ -391,6 +393,75 @@ docker compose up -d
   ```bash
   docker compose down
   ```
+
+### 6.5 Flujo rápido de pruebas end-to-end (con frontend)
+
+1. **Levantar todo el ecosistema**
+
+   ```bash
+   docker compose build
+   docker compose up -d
+   ```
+
+   Espera a que `auth-service`, `backend-matricula` y `frontend-matricula` estén en estado `running`.
+
+2. **Verificar variables del frontend**
+
+   En `FrontendMatricula/.env` (ya incluido en el repo):
+
+   ```env
+   VITE_AUTH_API_URL=http://localhost:8087/api/auth
+   VITE_BACKEND_API_URL=http://localhost:8086/api
+   ```
+
+3. **Usuarios y roles para la demo**
+
+   - Crea en `auth_db` los usuarios de aplicación (por API o insert directo) por ejemplo:
+     - `admin` (rol: **admin**)
+     - `operador` (rol: **operador**)
+   - Luego asígnales sus roles con:
+
+     ```sql
+     -- admin -> rol admin
+     INSERT INTO auth_user_role (user_id, role_id)
+     SELECT u.user_id, r.role_id
+     FROM auth_user u, auth_role r
+     WHERE u.username = 'admin' AND r.nombre = 'admin';
+
+     -- operador -> rol operador
+     INSERT INTO auth_user_role (user_id, role_id)
+     SELECT u.user_id, r.role_id
+     FROM auth_user u, auth_role r
+     WHERE u.username = 'operador' AND r.nombre = 'operador';
+     ```
+
+   > Los permisos por rol se cargan automáticamente desde `AuthMatricula/src/main/resources/data.sql`.
+
+4. **Acceder al frontend**
+
+   - URL: `http://localhost:5173`
+   - Login disponible:
+     - **Google Sign-In** → crea usuarios con rol `estudiante` por defecto.
+     - **Usuario/contraseña** (`/api/auth/login`) → para usuarios como `admin` y `operador`.
+
+5. **Qué debería ver cada rol en el frontend**
+
+   - **admin**
+     - Sidebar y Dashboard con:
+       - Módulo **Administración**: Usuarios, Roles, Permisos.
+       - Módulo **Académico**: Cursos, Profesores, Secciones.
+       - Módulo **Estudiantes**: Estudiantes, Matrículas.
+     - Puede hacer CRUD completo en todos los módulos.
+
+   - **operador**
+     - No ve el módulo Administración.
+     - Ve y gestiona:
+       - Académico: Cursos, Profesores, Secciones.
+       - Estudiantes: Estudiantes, Matrículas.
+
+   - **estudiante**
+     - Solo ve pantallas en modo lectura donde tiene permisos `*:READ` (por defecto: Cursos, Secciones, Matrículas).
+     - No ve botones de crear/editar/eliminar.
 
 ---
 
@@ -566,6 +637,8 @@ Ejemplo de estructura en la raíz del proyecto:
 /AuthMatricula                  # Auth Service (auth-service)
 /KafkaMatricula                 # Kafka Event Service (kafka-event-service)
 /RabbitMQMatricula              # Notification Service (notification-service)
+
+/FrontendMatricula              # Frontend Vite + React (frontend-matricula)
 
 /docker-compose.yml             # Compose global del ecosistema
 /README.md                      # README global (este archivo)
