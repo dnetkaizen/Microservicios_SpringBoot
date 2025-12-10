@@ -62,6 +62,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Limitar retención para no llenar disco
+      KAFKA_LOG_RETENTION_HOURS: 12           # borra segmentos con más de 12h
+      KAFKA_LOG_RETENTION_BYTES: 536870912    # 512 MB máximo por topic antes de limpiar
+      KAFKA_LOG_SEGMENT_BYTES: 134217728      # 128 MB por segmento
     ports:
       - "9092:9092"
     networks:
