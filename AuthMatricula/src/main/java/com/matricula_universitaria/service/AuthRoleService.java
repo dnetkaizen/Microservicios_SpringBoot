@@ -17,6 +17,8 @@ public interface AuthRoleService {
 
     List<AuthRoleResponseDto> listarTodos();
 
+    List<AuthRoleResponseDto> listarTodosConPermisos();
+
     AuthRoleResponseDto asignarPermiso(Long roleId, Long permissionId);
 
     AuthRoleResponseDto removerPermiso(Long roleId, Long permissionId);

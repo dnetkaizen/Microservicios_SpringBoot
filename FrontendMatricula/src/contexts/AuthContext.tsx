@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { firebaseApp } from '@/lib/firebase';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { authorizedFetch } from '@/lib/api';
+import { authorizedFetch, authorizedFetchWithService } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -26,46 +26,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user for development
-const mockUser: User = {
-  id: '1',
-  email: 'admin@universidad.edu',
-  displayName: 'Admin Usuario',
-  photoURL: undefined,
-  roles: ['ADMIN_MATRICULA', 'OPERADOR'],
-};
-
-// Mock permissions based on roles
-const rolePermissions: Record<string, Record<string, string[]>> = {
-  ADMIN_MATRICULA: {
-    usuarios: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    roles: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    permisos: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    cursos: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    profesores: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    secciones: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    estudiantes: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-    matriculas: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-  },
-  OPERADOR: {
-    cursos: ['READ'],
-    profesores: ['READ'],
-    secciones: ['READ', 'UPDATE'],
-    estudiantes: ['CREATE', 'READ', 'UPDATE'],
-    matriculas: ['CREATE', 'READ', 'UPDATE', 'DELETE'],
-  },
-  ESTUDIANTE: {
-    cursos: ['READ'],
-    secciones: ['READ'],
-    matriculas: ['READ'],
-  },
-};
+// El frontend ahora depende exclusivamente de permisos desde el backend
 
 interface AuthRoleResponse {
   id: number;
   nombre: string;
   descripcion: string;
-  permisos: string[];
+  permissions: string[];
 }
 
 type RolePermissionsMap = Record<string, Record<string, string[]>>;
@@ -82,8 +49,8 @@ function buildRolePermissionsMap(roles: AuthRoleResponse[]): RolePermissionsMap 
   for (const role of roles) {
     const permsByResource: Record<string, string[]> = {};
 
-    if (role.permisos) {
-      for (const nombre of role.permisos) {
+    if (role.permissions) {
+      for (const nombre of role.permissions) {
         const parsed = parsePermissionName(nombre);
         if (!parsed) continue;
         const { recursoId, operacion } = parsed;
@@ -129,14 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const response = await authorizedFetch('/auth/roles');
+        const response = await authorizedFetchWithService('/roles/with-permissions', 'auth');
         if (!response.ok) {
           throw new Error('Error al cargar permisos de roles');
         }
         const data: AuthRoleResponse[] = await response.json();
-        setBackendRolePermissions(buildRolePermissionsMap(data));
+        const map = buildRolePermissionsMap(data);
+        console.log('[AuthContext] Roles del usuario:', user.roles);
+        console.log('[AuthContext] Permisos cargados desde backend:', map);
+        setBackendRolePermissions(map);
       } catch (error) {
         console.error('Error al cargar permisos de roles:', error);
+        setBackendRolePermissions({});
       }
     };
 
@@ -247,10 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Simulate MFA verification
       if (code === '123456') {
-        setUser(mockUser);
-        setMfaRequired(false);
-        localStorage.setItem('matricula_user', JSON.stringify(mockUser));
-        localStorage.setItem('matricula_jwt', 'mock_jwt_token');
+        // En producción, esto vendría del backend tras verificar MFA
         return true;
       }
       return false;
@@ -262,22 +230,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = (resource: string, action: string): boolean => {
     if (!user) return false;
 
-    // Primero verificamos permisos obtenidos desde el backend
+    // Solo permisos obtenidos desde el backend
     for (const role of user.roles) {
       const permissions = backendRolePermissions[role];
       if (permissions && permissions[resource]?.includes(action)) {
+        console.log(`[AuthContext] hasPermission OK: role=${role}, resource=${resource}, action=${action}`);
         return true;
       }
     }
 
-    // Fallback: permisos estáticos de desarrollo
-    for (const role of user.roles) {
-      const permissions = rolePermissions[role];
-      if (permissions && permissions[resource]?.includes(action)) {
-        return true;
-      }
-    }
-
+    console.log(`[AuthContext] hasPermission DENIED: roles=${user.roles}, resource=${resource}, action=${action}, backendRolePermissions=`, backendRolePermissions);
     return false;
   };
 

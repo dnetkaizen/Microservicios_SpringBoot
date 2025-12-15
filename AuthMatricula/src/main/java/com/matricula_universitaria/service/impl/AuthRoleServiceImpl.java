@@ -86,6 +86,14 @@ public class AuthRoleServiceImpl implements AuthRoleService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<AuthRoleResponseDto> listarTodosConPermisos() {
+        return roleRepository.findAll().stream()
+                .map(roleMapper::toResponseDto)
+                .toList();
+    }
+
+    @Override
     public AuthRoleResponseDto asignarPermiso(Long roleId, Long permissionId) {
         AuthRole role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id " + roleId));

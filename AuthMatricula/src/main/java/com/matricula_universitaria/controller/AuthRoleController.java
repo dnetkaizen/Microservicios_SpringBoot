@@ -49,6 +49,11 @@ public class AuthRoleController {
         return ResponseEntity.ok(roleService.listarTodos());
     }
 
+    @GetMapping("/with-permissions")
+    public ResponseEntity<List<AuthRoleResponseDto>> listarConPermisos() {
+        return ResponseEntity.ok(roleService.listarTodosConPermisos());
+    }
+
     @PostMapping("/{roleId}/permissions/{permissionId}")
     public ResponseEntity<AuthRoleResponseDto> asignarPermiso(@PathVariable Long roleId,
                                                                @PathVariable Long permissionId) {

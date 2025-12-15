@@ -1,7 +1,11 @@
-const AUTH_API_BASE_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8087/api/auth';
-const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8086/api';
+const AUTH_API_BASE_URL = (import.meta.env?.VITE_AUTH_API_URL as string) || 'http://localhost:8087/api/auth';
+const BACKEND_API_BASE_URL = (import.meta.env?.VITE_BACKEND_API_URL as string) || 'http://localhost:8086/api';
 
 async function authorizedFetch(path: string, options: RequestInit = {}) {
+  return authorizedFetchWithService(path, 'backend', options);
+}
+
+async function authorizedFetchWithService(path: string, service: 'auth' | 'backend' = 'backend', options: RequestInit = {}) {
   const token = localStorage.getItem('matricula_jwt');
   const headers = new Headers(options.headers || {});
 
@@ -13,8 +17,9 @@ async function authorizedFetch(path: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${BACKEND_API_BASE_URL}${path}`, { ...options, headers });
+  const baseUrl = service === 'auth' ? AUTH_API_BASE_URL : BACKEND_API_BASE_URL;
+  const response = await fetch(`${baseUrl}${path}`, { ...options, headers });
   return response;
 }
 
-export { AUTH_API_BASE_URL, BACKEND_API_BASE_URL, authorizedFetch };
+export { AUTH_API_BASE_URL, BACKEND_API_BASE_URL, authorizedFetch, authorizedFetchWithService };
